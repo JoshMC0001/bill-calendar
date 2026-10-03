@@ -443,6 +443,43 @@
             width: 100%;
             margin-top: 6px
         }
+
+        .items li {
+            flex-wrap: wrap
+        }
+
+        .items .t {
+            min-width: 110px
+        }
+
+        .ph {
+            font-size: 12px;
+            color: var(--mute);
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            margin-top: 2px
+        }
+
+        .ph .ic {
+            padding: 0 6px;
+            font-size: 12px
+        }
+
+        .payf {
+            flex: 1 0 100%;
+            display: flex;
+            gap: 6px
+        }
+
+        .payf input {
+            flex: 1;
+            min-width: 0;
+            padding: 6px 8px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--bg)
+        }
     </style>
 </head>
 
@@ -525,7 +562,9 @@
             }
             return out.sort((a, b) => a.type.localeCompare(b.type) || a.title.localeCompare(b.title));
         }
-        const isDone = (e, date) => !!(e.done && e.done[date]);
+        const paySum = (e, d) => ((e.pays && e.pays[d]) || []).reduce((t, p) => t + (+p.a || 0), 0);
+        const isDone = (e, d) => !!(e.done && e.done[d]) || (e.type === 'bill' && +e.amt > 0 && paySum(e, d) >= +e.amt - 0.005);
+        const paidOf = (e, d) => isDone(e, d) ? Math.max(paySum(e, d), +e.amt || 0) : paySum(e, d);
 
         function render() {
             const y = view.getFullYear(), m = view.getMonth();
@@ -538,7 +577,7 @@
                 b.className = 'day' + (dt.getMonth() !== m ? ' out' : '') + (s === tstr ? ' today' : '');
                 b.innerHTML = '<span class="n">' + dt.getDate() + '</span>';
                 const list = on(s);
-                list.slice(0, 3).forEach(e => { const c = document.createElement('span'); c.className = 'chip ' + e.type + (isDone(e, s) ? ' done' : ''); c.textContent = e.title; b.appendChild(c) });
+                list.slice(0, 3).forEach(e => { const c = document.createElement('span'); c.className = 'chip ' + e.type + (isDone(e, s) ? ' done' : ''); const pp = e.type === 'bill' && !isDone(e, s) && paySum(e, s) > 0; c.textContent = (pp ? '\u25d0 ' : '') + e.title; b.appendChild(c) });
                 if (list.length > 3) { const mo = document.createElement('span'); mo.className = 'more'; mo.textContent = '+' + (list.length - 3) + ' more'; b.appendChild(mo) }
                 b.onclick = () => openDay(s);
                 g.appendChild(b);
@@ -547,15 +586,16 @@
         }
 
         function stats() {
-            const y = view.getFullYear(), m = view.getMonth(); let all = 0, left = 0, nb = 0, nd = 0;
+            const y = view.getFullYear(), m = view.getMonth(); let all = 0, left = 0, paid = 0, nb = 0, nd = 0;
             for (let d = 1; d <= dim(y, m); d++) {
                 const s = ds(y, m, d); on(s).forEach(e => {
-                    if (e.type === 'bill') { nb++; const a = +e.amt || 0; all += a; if (!isDone(e, s)) left += a }
+                    if (e.type === 'bill') { nb++; const a = +e.amt || 0, p = paidOf(e, s); all += a; paid += Math.min(a, p); left += Math.max(0, a - p) }
                     else if (e.type === 'deadline' && !isDone(e, s)) nd++;
                 })
             }
             $('stats').innerHTML = '<div class="stat"><span>Bills this month</span><b>' + nb + '</b></div>'
                 + '<div class="stat"><span>Total</span><b>' + fmt(all) + '</b></div>'
+                + '<div class="stat"><span>Paid so far</span><b>' + fmt(paid) + '</b></div>'
                 + '<div class="stat"><span>Still to pay</span><b>' + fmt(left) + '</b></div>'
                 + '<div class="stat"><span>Open deadlines</span><b>' + nd + '</b></div>';
         }
@@ -568,10 +608,11 @@
                     if (e.type === 'note' || isDone(e, s)) return; n++;
                     const li = document.createElement('li'); if (i < 0) li.className = 'late';
                     const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : i < 0 ? Math.abs(i) + 'd late' : dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-                    li.innerHTML = '<span class="d">' + label + '</span><span></span><span class="a">' + (e.amt ? fmt(e.amt) : '') + '</span>';
+                    const ps = paySum(e, s), rem = Math.max(0, (+e.amt || 0) - ps);
+                    li.innerHTML = '<span class="d">' + label + '</span><span></span><span class="a">' + (e.amt ? fmt(rem) + (ps > 0 ? ' left' : '') : '') + '</span>';
                     li.children[1].textContent = e.title;
                     const pb = document.createElement('button'); pb.className = 'pay'; pb.textContent = e.type === 'bill' ? 'Paid' : 'Done';
-                    pb.title = e.type === 'bill' ? 'Mark as paid' : 'Mark as done';
+                    pb.title = e.type === 'bill' ? 'Pay the remaining balance' : 'Mark as done';
                     pb.onclick = ev => { ev.stopPropagation(); toggleDone(e, s); render(); if ($('dlg').open && selected) list() };
                     li.appendChild(pb);
                     li.onclick = () => { view = new Date(dt.getFullYear(), dt.getMonth(), 1); render(); openDay(s) };
@@ -596,19 +637,41 @@
                 if (e.type !== 'note') {
                     const dn = isDone(e, selected), w = e.type === 'bill' ? 'paid' : 'done';
                     pay = document.createElement('button'); pay.className = 'pay' + (dn ? ' undo' : '');
-                    pay.textContent = dn ? 'Undo ' + w : 'Mark ' + w;
+                    pay.textContent = dn ? 'Undo ' + w : (e.type === 'bill' && paySum(e, selected) > 0 ? 'Pay rest' : 'Mark ' + w);
                     pay.onclick = () => { toggleDone(e, selected); list(); render() };
                 }
                 const t = document.createElement('div'); t.className = 't';
                 const st = document.createElement('strong'); st.textContent = e.title; t.appendChild(st);
                 const meta = [e.type === 'bill' ? 'Bill' : e.type === 'deadline' ? 'Deadline' : 'Note'];
-                if (e.amt) meta.push(fmt(e.amt)); if (e.rep) meta.push('monthly'); if (isDone(e, selected)) meta.push(e.type === 'bill' ? 'Paid' : 'Done');
+                if (e.amt) meta.push(fmt(e.amt)); if (e.rep) meta.push('monthly'); const ps = paySum(e, selected);
+                if (isDone(e, selected)) meta.push(e.type === 'bill' ? 'Paid' : 'Done');
+                else if (e.type === 'bill' && +e.amt > 0 && ps > 0) meta.push('paid ' + fmt(ps), fmt(Math.max(0, e.amt - ps)) + ' left');
                 const sm = document.createElement('small'); sm.textContent = meta.join(', '); t.appendChild(sm);
                 if (e.note) { const n = document.createElement('small'); n.textContent = e.note; t.appendChild(n) }
+                ((e.pays && e.pays[selected]) || []).forEach((p, i) => {
+                    const h = document.createElement('div'); h.className = 'ph';
+                    h.append(document.createTextNode('Paid ' + fmt(p.a) + ' on ' + new Date(p.t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })));
+                    const rb = document.createElement('button'); rb.className = 'ic'; rb.textContent = 'Remove';
+                    rb.onclick = () => { removePay(e, selected, i); list(); render() };
+                    h.appendChild(rb); t.appendChild(h);
+                });
                 const ed = document.createElement('button'); ed.className = 'ic'; ed.textContent = 'Edit'; ed.onclick = () => startEdit(e);
                 const del = document.createElement('button'); del.className = 'ic'; del.textContent = 'Delete';
                 del.onclick = () => { const msg = e.rep ? 'Delete "' + e.title + '" and all its monthly repeats?' : 'Delete "' + e.title + '"?'; if (confirm(msg)) { e.deleted = true; put(e); list(); render() } };
-                li.append(t); if (pay) li.append(pay); li.append(ed, del); ul.appendChild(li);
+                li.append(t); if (pay) li.append(pay);
+                let pf = null;
+                if (e.type === 'bill' && +e.amt > 0 && !isDone(e, selected)) {
+                    const left = Math.round(((+e.amt) - ps) * 100) / 100;
+                    const pb = document.createElement('button'); pb.className = 'ic'; pb.textContent = 'Pay part';
+                    pf = document.createElement('div'); pf.className = 'payf'; pf.hidden = true;
+                    const inp = document.createElement('input'); inp.type = 'number'; inp.min = '0.01'; inp.step = '0.01'; inp.placeholder = 'Amount (of ' + fmt(left) + ' left)';
+                    const go = document.createElement('button'); go.type = 'button'; go.className = 'primary'; go.textContent = 'Add payment';
+                    go.onclick = () => { const v = parseFloat(inp.value); if (!(v > 0)) { inp.focus(); return } addPay(e, selected, v); list(); render() };
+                    inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); go.click() } });
+                    pb.onclick = () => { pf.hidden = !pf.hidden; if (!pf.hidden) inp.focus() };
+                    pf.append(inp, go); li.append(pb);
+                }
+                li.append(ed, del); if (pf) li.append(pf); ul.appendChild(li);
             });
         }
         function resetForm() { $('f').reset(); $('save').textContent = 'Add to this day'; $('cancel').hidden = true; editing = null }
@@ -699,7 +762,13 @@
             $('dcalcBtn').onclick = () => toggleBox($('dcalcBtn'), $('dcalcBox'), $('dcalcBox').hidden, true);
             try { if (localStorage.getItem('billCalendar.calc') === '1') toggleBox($('calcBtn'), $('calcBox'), true, false) } catch (e) { }
         }
-        function toggleDone(e, date) { e.done = e.done || {}; if (e.done[date]) delete e.done[date]; else e.done[date] = 1; put(e) }
+        function addPay(e, d, a) { e.pays = e.pays || {}; (e.pays[d] = e.pays[d] || []).push({ a: Math.round(a * 100) / 100, t: Date.now() }); put(e) }
+        function removePay(e, d, i) { if (e.pays && e.pays[d]) { e.pays[d].splice(i, 1); if (!e.pays[d].length) delete e.pays[d]; put(e) } }
+        function toggleDone(e, d) {
+            if (isDone(e, d)) { if (e.done) delete e.done[d]; if (e.pays) delete e.pays[d]; put(e) }
+            else if (e.type === 'bill' && +e.amt > 0) addPay(e, d, Math.round(((+e.amt) - paySum(e, d)) * 100) / 100);
+            else { e.done = e.done || {}; e.done[d] = 1; put(e) }
+        }
         function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }
         const cloud = { ready: false, pending: false, failed: false };
         function put(e) { e.updatedAt = Date.now(); persist(); if (window.cloudPush) window.cloudPush(e) }

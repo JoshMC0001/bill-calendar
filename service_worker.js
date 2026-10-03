@@ -1,5 +1,5 @@
 // Bump VERSION whenever you change index.html so devices pick up the new copy.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const SHELL = 'bills-shell-' + VERSION;
 const SDK = 'bills-firebase-sdk';
 const SHELL_FILES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];

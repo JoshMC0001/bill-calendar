@@ -303,9 +303,26 @@
             color: var(--mute)
         }
 
-        .items .ic {
+        .items .ic,
+        .pay {
             padding: 2px 8px;
             font-size: 13px
+        }
+
+        .pay {
+            background: var(--ok);
+            color: var(--bg);
+            border-color: var(--ok);
+            font-weight: 600
+        }
+
+        .pay.undo {
+            background: transparent;
+            color: var(--ok)
+        }
+
+        .up .pay {
+            margin-left: 6px
         }
 
         .items .done .t strong {
@@ -487,6 +504,10 @@
                     const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : i < 0 ? Math.abs(i) + 'd late' : dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                     li.innerHTML = '<span class="d">' + label + '</span><span></span><span class="a">' + (e.amt ? fmt(e.amt) : '') + '</span>';
                     li.children[1].textContent = e.title;
+                    const pb = document.createElement('button'); pb.className = 'pay'; pb.textContent = e.type === 'bill' ? 'Paid' : 'Done';
+                    pb.title = e.type === 'bill' ? 'Mark as paid' : 'Mark as done';
+                    pb.onclick = ev => { ev.stopPropagation(); toggleDone(e, s); render(); if ($('dlg').open && selected) list() };
+                    li.appendChild(pb);
                     li.onclick = () => { view = new Date(dt.getFullYear(), dt.getMonth(), 1); render(); openDay(s) };
                     ul.appendChild(li);
                 });
@@ -505,19 +526,23 @@
             if (!items.length) { ul.innerHTML = '<li class="empty">No entries on this day.</li>'; return }
             items.forEach(e => {
                 const li = document.createElement('li'); if (isDone(e, selected)) li.className = 'done';
-                const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = isDone(e, selected);
-                cb.title = e.type === 'bill' ? 'Mark as paid' : 'Mark as done'; cb.hidden = e.type === 'note';
-                cb.onchange = () => { e.done = e.done || {}; if (cb.checked) e.done[selected] = 1; else delete e.done[selected]; put(e); list(); render() };
+                let pay = null;
+                if (e.type !== 'note') {
+                    const dn = isDone(e, selected), w = e.type === 'bill' ? 'paid' : 'done';
+                    pay = document.createElement('button'); pay.className = 'pay' + (dn ? ' undo' : '');
+                    pay.textContent = dn ? 'Undo ' + w : 'Mark ' + w;
+                    pay.onclick = () => { toggleDone(e, selected); list(); render() };
+                }
                 const t = document.createElement('div'); t.className = 't';
                 const st = document.createElement('strong'); st.textContent = e.title; t.appendChild(st);
                 const meta = [e.type === 'bill' ? 'Bill' : e.type === 'deadline' ? 'Deadline' : 'Note'];
-                if (e.amt) meta.push(fmt(e.amt)); if (e.rep) meta.push('monthly');
+                if (e.amt) meta.push(fmt(e.amt)); if (e.rep) meta.push('monthly'); if (isDone(e, selected)) meta.push(e.type === 'bill' ? 'Paid' : 'Done');
                 const sm = document.createElement('small'); sm.textContent = meta.join(', '); t.appendChild(sm);
                 if (e.note) { const n = document.createElement('small'); n.textContent = e.note; t.appendChild(n) }
                 const ed = document.createElement('button'); ed.className = 'ic'; ed.textContent = 'Edit'; ed.onclick = () => startEdit(e);
                 const del = document.createElement('button'); del.className = 'ic'; del.textContent = 'Delete';
                 del.onclick = () => { const msg = e.rep ? 'Delete "' + e.title + '" and all its monthly repeats?' : 'Delete "' + e.title + '"?'; if (confirm(msg)) { e.deleted = true; put(e); list(); render() } };
-                li.append(cb, t, ed, del); ul.appendChild(li);
+                li.append(t); if (pay) li.append(pay); li.append(ed, del); ul.appendChild(li);
             });
         }
         function resetForm() { $('f').reset(); $('save').textContent = 'Add to this day'; $('cancel').hidden = true; editing = null }
@@ -556,6 +581,7 @@
             r.readAsText(f); ev.target.value = '';
         };
 
+        function toggleDone(e, date) { e.done = e.done || {}; if (e.done[date]) delete e.done[date]; else e.done[date] = 1; put(e) }
         function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }
         const cloud = { ready: false, pending: false, failed: false };
         function put(e) { e.updatedAt = Date.now(); persist(); if (window.cloudPush) window.cloudPush(e) }

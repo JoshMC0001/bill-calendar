@@ -381,6 +381,68 @@
             flex-wrap: wrap;
             margin-top: 10px
         }
+
+        [hidden] {
+            display: none !important
+        }
+
+        .calc {
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 8px;
+            margin-bottom: 10px;
+            background: var(--bg);
+            outline: none
+        }
+
+        .calc:focus-visible {
+            outline: 2px solid var(--accent)
+        }
+
+        .calc .scr {
+            text-align: right;
+            padding: 2px 6px 8px
+        }
+
+        .calc .ex {
+            font-size: 12px;
+            color: var(--mute);
+            min-height: 16px
+        }
+
+        .calc .nm {
+            font-size: 26px;
+            font-variant-numeric: tabular-nums;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap
+        }
+
+        .calc .keys {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px
+        }
+
+        .calc .keys button {
+            padding: 9px 0;
+            font-size: 16px
+        }
+
+        .calc .keys .op {
+            background: color-mix(in srgb, var(--accent) 14%, var(--panel))
+        }
+
+        .calc .keys .eq {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent)
+        }
+
+        .calc .use {
+            width: 100%;
+            margin-top: 6px
+        }
     </style>
 </head>
 
@@ -401,7 +463,9 @@
             <div id="stats" style="margin-bottom:14px"></div>
             <h2>Overdue and coming up</h2>
             <ul class="up" id="up"></ul>
+            <div class="calc" id="calcBox" hidden></div>
             <div class="foot">
+                <button id="calcBtn" aria-expanded="false">Calculator</button>
                 <button id="exp">Save backup</button>
                 <button id="imp">Load backup</button>
                 <input type="file" id="file" accept=".json" hidden>
@@ -426,6 +490,8 @@
                     </select></label>
                 <label>Amount<input id="famt" type="number" min="0" step="0.01" placeholder="0.00"></label>
             </div>
+            <button type="button" id="dcalcBtn" aria-expanded="false" style="justify-self:start">Calculator</button>
+            <div class="calc" id="dcalcBox" hidden></div>
             <label>Details<textarea id="fnote" rows="2" maxlength="300"
                     placeholder="Account number, link, reminder"></textarea></label>
             <label class="chk"><input type="checkbox" id="frep"> Repeats every month</label>
@@ -581,6 +647,58 @@
             r.readAsText(f); ev.target.value = '';
         };
 
+        function makeCalc(host, onUse) {
+            host.tabIndex = 0;
+            host.innerHTML = '<div class="scr"><div class="ex"></div><div class="nm">0</div></div><div class="keys"></div>' + (onUse ? '<button type="button" class="use primary">Use as amount</button>' : '');
+            const ex = host.querySelector('.ex'), nm = host.querySelector('.nm'), keys = host.querySelector('.keys');
+            let cur = '0', acc = null, op = null, fresh = false;
+            const sym = { '+': '+', '-': '\u2212', '*': '\u00d7', '/': '\u00f7' };
+            const fm = n => isFinite(n) ? String(+n.toFixed(10)) : 'Error';
+            const num = () => parseFloat(cur);
+            const calc = (a, o, b) => o === '+' ? a + b : o === '-' ? a - b : o === '*' ? a * b : (b === 0 ? NaN : a / b);
+            const draw = () => { ex.textContent = op ? fm(acc) + ' ' + sym[op] : ''; nm.textContent = cur };
+            function press(k) {
+                if (cur === 'Error' && k !== 'C' && !/^\d$/.test(k)) return;
+                if (/^\d$/.test(k)) { cur = (fresh || cur === '0' || cur === 'Error') ? k : cur + k; fresh = false }
+                else if (k === '.') { if (fresh) { cur = '0.'; fresh = false } else if (!cur.includes('.')) cur += '.' }
+                else if ('+-*/'.includes(k)) { if (op && !fresh) { acc = calc(acc, op, num()); cur = fm(acc) } else acc = num(); op = k; fresh = true }
+                else if (k === '=') { if (op) { acc = calc(acc, op, num()); cur = fm(acc); op = null; fresh = true } }
+                else if (k === 'C') { cur = '0'; acc = null; op = null; fresh = false }
+                else if (k === 'Back') { if (!fresh) cur = cur.length > 1 ? cur.slice(0, -1) : '0' }
+                else if (k === '%') { cur = fm(num() / 100); fresh = true }
+                else if (k === 'neg') { if (cur !== '0') cur = cur.startsWith('-') ? cur.slice(1) : '-' + cur }
+                draw();
+            }
+            [['C', 'C'], ['Back', '\u232b'], ['%', '%'], ['/', '\u00f7', 'op'], ['7', '7'], ['8', '8'], ['9', '9'], ['*', '\u00d7', 'op'],
+            ['4', '4'], ['5', '5'], ['6', '6'], ['-', '\u2212', 'op'], ['1', '1'], ['2', '2'], ['3', '3'], ['+', '+', 'op'],
+            ['neg', '\u00b1'], ['0', '0'], ['.', '.'], ['=', '=', 'eq']].forEach(([k, l, c]) => {
+                const b = document.createElement('button'); b.type = 'button'; b.textContent = l; if (c) b.className = c;
+                b.onclick = () => press(k); keys.appendChild(b);
+            });
+            host.addEventListener('keydown', e => {
+                if (e.ctrlKey || e.metaKey || e.altKey) return;
+                const m = { Enter: '=', '=': '=', Backspace: 'Back', Delete: 'C', c: 'C', C: 'C', ',': '.' };
+                const k = m[e.key] || e.key;
+                if (/^[0-9.+\-*\/%]$/.test(k) || k === '=' || k === 'Back' || k === 'C') { e.preventDefault(); press(k) }
+            });
+            if (onUse) host.querySelector('.use').onclick = () => { press('='); const n = parseFloat(cur); if (isFinite(n)) onUse(n) };
+            draw();
+        }
+        function toggleBox(btn, box, on, focus) {
+            box.hidden = !on; btn.setAttribute('aria-expanded', String(on));
+            btn.textContent = on ? 'Hide calculator' : 'Calculator';
+            if (on && focus) box.focus();
+        }
+        function initCalc() {
+            makeCalc($('calcBox'));
+            makeCalc($('dcalcBox'), n => { const f = $('famt'); f.value = Math.round(Math.abs(n) * 100) / 100; f.focus() });
+            $('calcBtn').onclick = () => {
+                const on = $('calcBox').hidden; toggleBox($('calcBtn'), $('calcBox'), on, true);
+                try { localStorage.setItem('billCalendar.calc', on ? '1' : '0') } catch (e) { }
+            };
+            $('dcalcBtn').onclick = () => toggleBox($('dcalcBtn'), $('dcalcBox'), $('dcalcBox').hidden, true);
+            try { if (localStorage.getItem('billCalendar.calc') === '1') toggleBox($('calcBtn'), $('calcBox'), true, false) } catch (e) { }
+        }
         function toggleDone(e, date) { e.done = e.done || {}; if (e.done[date]) delete e.done[date]; else e.done[date] = 1; put(e) }
         function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }
         const cloud = { ready: false, pending: false, failed: false };
@@ -614,7 +732,7 @@
             status();
         };
         ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(d => { const x = document.createElement('div'); x.textContent = d; $('dow').appendChild(x) });
-        load(); render(); status();
+        load(); render(); status(); initCalc();
         window.addEventListener('offline', status);
         window.addEventListener('online', () => { status(); if (cloud.failed && !$('dlg').open) location.reload() });
     </script>

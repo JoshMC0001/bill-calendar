@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bills & Deadlines</title>
+    <style>
+        :root {
+            --bg: #eef2f5;
+            --panel: #fff;
+            --ink: #16222e;
+            --mute: #667585;
+            --line: #d8e0e7;
+            --accent: #1f5f8b;
+            --bill: #1f5f8b;
+            --due: #b86a00;
+            --note: #5b6b7c;
+            --ok: #1d7a52;
+            --bad: #c23b3b;
+            --today: #e3f0f9
+        }
+
+        @media (prefers-color-scheme:dark) {
+            :root:not([data-theme=light]) {
+                --bg: #10171e;
+                --panel: #18222c;
+                --ink: #e6edf3;
+                --mute: #8d9cab;
+                --line: #2a3846;
+                --accent: #5aa7d8;
+                --bill: #5aa7d8;
+                --due: #e8a23a;
+                --note: #9aa8b6;
+                --ok: #4cbf8b;
+                --bad: #ef7070;
+                --today: #1e3243
+            }
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        html,
+        body {
+            margin: 0
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--ink);
+            font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            padding: 16px
+        }
+
+        button,
+        input,
+        select,
+        textarea {
+            font: inherit;
+            color: inherit
+        }
+
+        button {
+            cursor: pointer;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 6px 12px
+        }
+
+        button:hover {
+            border-color: var(--accent)
+        }
+
+        button.primary {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent)
+        }
+
+        :focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px
+        }
+
+        .app {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 16px
+        }
+
+        @media(max-width:820px) {
+            .app {
+                grid-template-columns: 1fr
+            }
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 14px
+        }
+
+        .head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px
+        }
+
+        .head h1 {
+            font-size: 20px;
+            margin: 0;
+            flex: 1
+        }
+
+        .dow,
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 4px
+        }
+
+        .dow div {
+            text-align: center;
+            color: var(--mute);
+            font-size: 12px;
+            padding: 4px 0
+        }
+
+        .day {
+            min-height: 84px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 4px;
+            text-align: left;
+            background: var(--panel);
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            overflow: hidden
+        }
+
+        .day.out {
+            opacity: .45
+        }
+
+        .day.today {
+            background: var(--today);
+            border-color: var(--accent)
+        }
+
+        .day .n {
+            font-size: 12px;
+            color: var(--mute);
+            font-weight: 600
+        }
+
+        .chip {
+            font-size: 11px;
+            line-height: 1.25;
+            padding: 1px 4px;
+            border-radius: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            border-left: 3px solid var(--bill);
+            background: color-mix(in srgb, var(--bill) 14%, transparent)
+        }
+
+        .chip.deadline {
+            border-color: var(--due);
+            background: color-mix(in srgb, var(--due) 16%, transparent)
+        }
+
+        .chip.note {
+            border-color: var(--note);
+            background: color-mix(in srgb, var(--note) 14%, transparent)
+        }
+
+        .chip.done {
+            text-decoration: line-through;
+            opacity: .55;
+            border-color: var(--ok)
+        }
+
+        .more {
+            font-size: 11px;
+            color: var(--mute)
+        }
+
+        @media(max-width:560px) {
+            .day {
+                min-height: 58px
+            }
+
+            .chip {
+                font-size: 0;
+                height: 6px;
+                padding: 0
+            }
+
+            .more {
+                font-size: 10px
+            }
+        }
+
+        .side h2 {
+            font-size: 14px;
+            margin: 0 0 8px
+        }
+
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid var(--line)
+        }
+
+        .stat b {
+            font-variant-numeric: tabular-nums
+        }
+
+        .up {
+            list-style: none;
+            margin: 0 0 14px;
+            padding: 0
+        }
+
+        .up li {
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--line);
+            cursor: pointer
+        }
+
+        .up .d {
+            min-width: 48px;
+            color: var(--mute);
+            font-size: 12px
+        }
+
+        .up .late .d {
+            color: var(--bad);
+            font-weight: 600
+        }
+
+        .up .a {
+            margin-left: auto;
+            font-variant-numeric: tabular-nums
+        }
+
+        .empty {
+            color: var(--mute);
+            font-size: 13px
+        }
+
+        dialog {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: var(--panel);
+            color: var(--ink);
+            width: min(440px, 94vw);
+            padding: 16px
+        }
+
+        dialog::backdrop {
+            background: rgba(0, 0, 0, .45)
+        }
+
+        .items {
+            list-style: none;
+            margin: 8px 0 12px;
+            padding: 0
+        }
+
+        .items li {
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--line)
+        }
+
+        .items .t {
+            flex: 1
+        }
+
+        .items .t small {
+            display: block;
+            color: var(--mute)
+        }
+
+        .items .ic {
+            padding: 2px 8px;
+            font-size: 13px
+        }
+
+        .items .done .t strong {
+            text-decoration: line-through;
+            color: var(--mute)
+        }
+
+        form {
+            display: grid;
+            gap: 8px
+        }
+
+        form label {
+            display: grid;
+            gap: 2px;
+            font-size: 12px;
+            color: var(--mute)
+        }
+
+        form input,
+        form select,
+        form textarea {
+            padding: 7px 9px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--bg)
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px
+        }
+
+        .chk {
+            display: flex !important;
+            grid-template-columns: none;
+            align-items: center;
+            gap: 6px !important;
+            flex-direction: row
+        }
+
+        .chk input {
+            width: auto
+        }
+
+        .btns {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end
+        }
+
+        .foot {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <main class="panel">
+            <div class="head">
+                <button id="prev" aria-label="Previous month">&lsaquo;</button>
+                <h1 id="title"></h1>
+                <button id="today">Today</button>
+                <button id="next" aria-label="Next month">&rsaquo;</button>
+            </div>
+            <div class="dow" id="dow"></div>
+            <div class="grid" id="grid"></div>
+        </main>
+        <aside class="panel side">
+            <h2>This month</h2>
+            <div id="stats" style="margin-bottom:14px"></div>
+            <h2>Overdue and coming up</h2>
+            <ul class="up" id="up"></ul>
+            <div class="foot">
+                <button id="exp">Save backup</button>
+                <button id="imp">Load backup</button>
+                <input type="file" id="file" accept=".json" hidden>
+            </div>
+            <p class="empty" id="sync" role="status"></p>
+            <p class="empty" id="warn"></p>
+        </aside>
+    </div>
+
+    <dialog id="dlg">
+        <div class="head">
+            <h1 id="dtitle" style="font-size:17px"></h1><button id="close">Close</button>
+        </div>
+        <ul class="items" id="items"></ul>
+        <form id="f">
+            <label>Title<input id="ftitle" required maxlength="80" placeholder="Electric bill"></label>
+            <div class="row">
+                <label>Type<select id="ftype">
+                        <option value="bill">Bill</option>
+                        <option value="deadline">Deadline</option>
+                        <option value="note">Note</option>
+                    </select></label>
+                <label>Amount<input id="famt" type="number" min="0" step="0.01" placeholder="0.00"></label>
+            </div>
+            <label>Details<textarea id="fnote" rows="2" maxlength="300"
+                    placeholder="Account number, link, reminder"></textarea></label>
+            <label class="chk"><input type="checkbox" id="frep"> Repeats every month</label>
+            <div class="btns"><button type="button" id="cancel" hidden>Cancel edit</button><button class="primary"
+                    id="save">Add to this day</button></div>
+        </form>
+    </dialog>
+
+    <script>
+        const KEY = 'billCalendar.v1';
+        let data = [], view = new Date(), selected = null, editing = null, memOnly = false;
+        const $ = id => document.getElementById(id);
+        const pad = n => String(n).padStart(2, '0');
+        const ds = (y, m, d) => y + '-' + pad(m + 1) + '-' + pad(d);
+        const dim = (y, m) => new Date(y, m + 1, 0).getDate();
+        const fmt = n => (+n).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        const todayStr = () => {const t = new Date(); return ds(t.getFullYear(), t.getMonth(), t.getDate())};
+
+        function load() {
+            try {const r = localStorage.getItem(KEY); data = r ? JSON.parse(r) : []} catch (e) {memOnly = true; data = []}
+            let fix = false; data.forEach(e => {if (!e.updatedAt) {e.updatedAt = Date.now(); fix = true} }); if (fix) persist()
+        }
+        function persist() {try {localStorage.setItem(KEY, JSON.stringify(data))} catch (e) {memOnly = true; $('warn').textContent = 'Saving is blocked in this browser. Use Save backup so you keep your entries.'} }
+
+        function on(date) {
+            const [y, m, d] = date.split('-').map(Number), out = [];
+            for (const e of data) {
+                if (e.deleted) continue;
+                if (e.date === date) out.push(e);
+                else if (e.rep && e.date < date) {const od = +e.date.slice(8); if (Math.min(od, dim(y, m - 1)) === d) out.push(e)}
+            }
+            return out.sort((a, b) => a.type.localeCompare(b.type) || a.title.localeCompare(b.title));
+        }
+        const isDone = (e, date) => !!(e.done && e.done[date]);
+
+        function render() {
+            const y = view.getFullYear(), m = view.getMonth();
+            $('title').textContent = view.toLocaleString(undefined, {month: 'long', year: 'numeric'});
+            const first = new Date(y, m, 1).getDay(), g = $('grid'); g.innerHTML = '';
+            const total = Math.ceil((first + dim(y, m)) / 7) * 7, tstr = todayStr();
+            for (let i = 0; i < total; i++) {
+                const dt = new Date(y, m, i - first + 1), s = ds(dt.getFullYear(), dt.getMonth(), dt.getDate());
+                const b = document.createElement('button');
+                b.className = 'day' + (dt.getMonth() !== m ? ' out' : '') + (s === tstr ? ' today' : '');
+                b.innerHTML = '<span class="n">' + dt.getDate() + '</span>';
+                const list = on(s);
+                list.slice(0, 3).forEach(e => {const c = document.createElement('span'); c.className = 'chip ' + e.type + (isDone(e, s) ? ' done' : ''); c.textContent = e.title; b.appendChild(c)});
+                if (list.length > 3) {const mo = document.createElement('span'); mo.className = 'more'; mo.textContent = '+' + (list.length - 3) + ' more'; b.appendChild(mo)}
+                b.onclick = () => openDay(s);
+                g.appendChild(b);
+            }
+            stats(); upcoming();
+        }
+
+        function stats() {
+            const y = view.getFullYear(), m = view.getMonth(); let all = 0, left = 0, nb = 0, nd = 0;
+            for (let d = 1; d <= dim(y, m); d++) {
+                const s = ds(y, m, d); on(s).forEach(e => {
+                    if (e.type === 'bill') {nb++; const a = +e.amt || 0; all += a; if (!isDone(e, s)) left += a}
+                    else if (e.type === 'deadline' && !isDone(e, s)) nd++;
+                })
+            }
+            $('stats').innerHTML = '<div class="stat"><span>Bills this month</span><b>' + nb + '</b></div>'
+                + '<div class="stat"><span>Total</span><b>' + fmt(all) + '</b></div>'
+                + '<div class="stat"><span>Still to pay</span><b>' + fmt(left) + '</b></div>'
+                + '<div class="stat"><span>Open deadlines</span><b>' + nd + '</b></div>';
+        }
+
+        function upcoming() {
+            const ul = $('up'); ul.innerHTML = ''; const t = new Date(); let n = 0;
+            for (let i = -30; i <= 30; i++) {
+                const dt = new Date(t.getFullYear(), t.getMonth(), t.getDate() + i), s = ds(dt.getFullYear(), dt.getMonth(), dt.getDate());
+                on(s).forEach(e => {
+                    if (e.type === 'note' || isDone(e, s)) return; n++;
+                    const li = document.createElement('li'); if (i < 0) li.className = 'late';
+                    const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : i < 0 ? Math.abs(i) + 'd late' : dt.toLocaleDateString(undefined, {month: 'short', day: 'numeric'});
+                    li.innerHTML = '<span class="d">' + label + '</span><span></span><span class="a">' + (e.amt ? fmt(e.amt) : '') + '</span>';
+                    li.children[1].textContent = e.title;
+                    li.onclick = () => {view = new Date(dt.getFullYear(), dt.getMonth(), 1); render(); openDay(s)};
+                    ul.appendChild(li);
+                });
+            }
+            if (!n) ul.innerHTML = '<li class="empty" style="cursor:default">Nothing due. Select a day to add a bill.</li>';
+        }
+
+        function openDay(s) {
+            selected = s; editing = null; resetForm();
+            const [y, m, d] = s.split('-').map(Number);
+            $('dtitle').textContent = new Date(y, m - 1, d).toLocaleDateString(undefined, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'});
+            list(); if (!$('dlg').open) $('dlg').showModal();
+        }
+        function list() {
+            const ul = $('items'); ul.innerHTML = ''; const items = on(selected);
+            if (!items.length) {ul.innerHTML = '<li class="empty">No entries on this day.</li>'; return }
+            items.forEach(e => {
+                const li = document.createElement('li'); if (isDone(e, selected)) li.className = 'done';
+                const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = isDone(e, selected);
+                cb.title = e.type === 'bill' ? 'Mark as paid' : 'Mark as done'; cb.hidden = e.type === 'note';
+                cb.onchange = () => {e.done = e.done || {}; if (cb.checked) e.done[selected] = 1; else delete e.done[selected]; put(e); list(); render()};
+                const t = document.createElement('div'); t.className = 't';
+                const st = document.createElement('strong'); st.textContent = e.title; t.appendChild(st);
+                const meta = [e.type === 'bill' ? 'Bill' : e.type === 'deadline' ? 'Deadline' : 'Note'];
+                if (e.amt) meta.push(fmt(e.amt)); if (e.rep) meta.push('monthly');
+                const sm = document.createElement('small'); sm.textContent = meta.join(', '); t.appendChild(sm);
+                if (e.note) {const n = document.createElement('small'); n.textContent = e.note; t.appendChild(n)}
+                const ed = document.createElement('button'); ed.className = 'ic'; ed.textContent = 'Edit'; ed.onclick = () => startEdit(e);
+                const del = document.createElement('button'); del.className = 'ic'; del.textContent = 'Delete';
+                del.onclick = () => {const msg = e.rep ? 'Delete "' + e.title + '" and all its monthly repeats?' : 'Delete "' + e.title + '"?'; if (confirm(msg)) {e.deleted = true; put(e); list(); render()} };
+                li.append(cb, t, ed, del); ul.appendChild(li);
+            });
+        }
+        function resetForm() {$('f').reset(); $('save').textContent = 'Add to this day'; $('cancel').hidden = true; editing = null}
+        function startEdit(e) {
+            editing = e; $('ftitle').value = e.title; $('ftype').value = e.type; $('famt').value = e.amt || ''; $('fnote').value = e.note || ''; $('frep').checked = !!e.rep;
+            $('save').textContent = 'Save changes'; $('cancel').hidden = false; $('ftitle').focus();
+        }
+        $('f').addEventListener('submit', ev => {
+            ev.preventDefault();
+            const v = {title: $('ftitle').value.trim(), type: $('ftype').value, amt: $('famt').value, note: $('fnote').value.trim(), rep: $('frep').checked};
+            if (!v.title) return;
+            if (editing) {Object.assign(editing, v); put(editing)}
+            else {const n = {id: newId(), date: selected, done: {}, ...v}; data.push(n); put(n)}
+            resetForm(); list(); render();
+        });
+        $('cancel').onclick = resetForm;
+        $('close').onclick = () => $('dlg').close();
+        $('prev').onclick = () => {view = new Date(view.getFullYear(), view.getMonth() - 1, 1); render()};
+        $('next').onclick = () => {view = new Date(view.getFullYear(), view.getMonth() + 1, 1); render()};
+        $('today').onclick = () => {view = new Date(); render()};
+
+        $('exp').onclick = () => {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([JSON.stringify(data.filter(e => !e.deleted), null, 2)], {type: 'application/json'}));
+            a.download = 'bills-backup-' + todayStr() + '.json'; a.click(); URL.revokeObjectURL(a.href);
+        };
+        $('imp').onclick = () => $('file').click();
+        $('file').onchange = ev => {
+            const f = ev.target.files[0]; if (!f) return; const r = new FileReader();
+            r.onload = () => {
+                try {
+                    const j = JSON.parse(r.result); if (!Array.isArray(j)) throw 0;
+                    if (confirm('Add ' + j.length + ' entries from this backup? Your current entries are kept.')) {importList(j); render()}
+                } catch (e) {alert('That file is not a valid backup.')}
+            };
+            r.readAsText(f); ev.target.value = '';
+        };
+
+        function newId() {return Date.now().toString(36) + Math.random().toString(36).slice(2, 6)}
+        const cloud = {ready: false, pending: false, failed: false};
+        function put(e) {e.updatedAt = Date.now(); persist(); if (window.cloudPush) window.cloudPush(e)}
+        function importList(j) {
+            j.forEach(x => {
+                if (!x || !x.title || !x.date) return;
+                const ex = x.id && data.find(d => d.id === x.id);
+                if (ex) {Object.assign(ex, x, {deleted: false}); put(ex)}
+                else {const n = {done: {}, ...x, id: x.id || newId(), deleted: false}; data.push(n); put(n)}
+            })
+        }
+        function status() {
+            const s = $('sync');
+            if (!navigator.onLine) s.textContent = 'Offline. Changes are saved on this device and will sync when you reconnect.';
+            else if (cloud.failed) s.textContent = 'Cloud sync is unavailable. Working from this device only.';
+            else if (!cloud.ready) s.textContent = 'Connecting to cloud sync...';
+            else s.textContent = cloud.pending ? 'Syncing...' : 'Synced across your devices.';
+        }
+        window.cloudFail = () => {cloud.failed = true; status()};
+        window.cloudMerge = function (remote, pending) {
+            cloud.ready = true; cloud.failed = false; cloud.pending = pending; let changed = false;
+            const rm = new Map(remote.map(r => [r.id, r]));
+            remote.forEach(r => {
+                const l = data.find(d => d.id === r.id);
+                if (!l) {data.push(r); changed = true}
+                else if ((r.updatedAt || 0) > (l.updatedAt || 0)) {Object.assign(l, r); changed = true}
+            });
+            data.forEach(l => {const r = rm.get(l.id); if (!r || (l.updatedAt || 0) > (r.updatedAt || 0)) window.cloudPush(l)});
+            if (changed) {persist(); render(); if ($('dlg').open && selected) list()}
+            status();
+        };
+        ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(d => {const x = document.createElement('div'); x.textContent = d; $('dow').appendChild(x)});
+        load(); render(); status();
+        window.addEventListener('offline', status);
+        window.addEventListener('online', () => {status(); if (cloud.failed && !$('dlg').open) location.reload()});
+    </script>
+    <script type="module">
+        const firebaseConfig = {
+            apiKey: "AIzaSyBzDOE3BMZ_pPHDbq3i4PLmYYzfur_AgJ0",
+            authDomain: "schedule-9b66c.firebaseapp.com",
+            projectId: "schedule-9b66c",
+            storageBucket: "schedule-9b66c.firebasestorage.app",
+            messagingSenderId: "684107196052",
+            appId: "1:684107196052:web:eaa1d94d5656bf6955b681",
+            measurementId: "G-F1THW9K3WD"
+        };
+        // Entries live in their own collection, so data from your other web app is never read or changed.
+        const COLLECTION = 'billcal_entries';
+        const B = 'https://www.gstatic.com/firebasejs/12.15.0/';
+        try {
+            const {initializeApp} = await import(B + 'firebase-app.js');
+            const fs = await import(B + 'firebase-firestore.js');
+            const app = initializeApp(firebaseConfig);
+            const db = fs.initializeFirestore(app, {localCache: fs.persistentLocalCache({tabManager: fs.persistentMultipleTabManager()})});
+            const col = fs.collection(db, COLLECTION);
+            window.cloudPush = e => {fs.setDoc(fs.doc(col, e.id), JSON.parse(JSON.stringify(e))).catch(() => { })};
+            fs.onSnapshot(col, snap => window.cloudMerge(snap.docs.map(d => d.data()), snap.metadata.hasPendingWrites), () => window.cloudFail());
+        } catch (e) {window.cloudFail()}
+    </script>
+</body>
+
+</html>

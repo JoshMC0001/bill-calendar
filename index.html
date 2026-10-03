@@ -5,6 +5,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Bills & Deadlines</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1f5f8b">
+    <link rel="icon" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <style>
         :root {
             --bg: #eef2f5;
@@ -419,21 +424,21 @@
         const pad = n => String(n).padStart(2, '0');
         const ds = (y, m, d) => y + '-' + pad(m + 1) + '-' + pad(d);
         const dim = (y, m) => new Date(y, m + 1, 0).getDate();
-        const fmt = n => (+n).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
-        const todayStr = () => {const t = new Date(); return ds(t.getFullYear(), t.getMonth(), t.getDate())};
+        const fmt = n => (+n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const todayStr = () => { const t = new Date(); return ds(t.getFullYear(), t.getMonth(), t.getDate()) };
 
         function load() {
-            try {const r = localStorage.getItem(KEY); data = r ? JSON.parse(r) : []} catch (e) {memOnly = true; data = []}
-            let fix = false; data.forEach(e => {if (!e.updatedAt) {e.updatedAt = Date.now(); fix = true} }); if (fix) persist()
+            try { const r = localStorage.getItem(KEY); data = r ? JSON.parse(r) : [] } catch (e) { memOnly = true; data = [] }
+            let fix = false; data.forEach(e => { if (!e.updatedAt) { e.updatedAt = Date.now(); fix = true } }); if (fix) persist()
         }
-        function persist() {try {localStorage.setItem(KEY, JSON.stringify(data))} catch (e) {memOnly = true; $('warn').textContent = 'Saving is blocked in this browser. Use Save backup so you keep your entries.'} }
+        function persist() { try { localStorage.setItem(KEY, JSON.stringify(data)) } catch (e) { memOnly = true; $('warn').textContent = 'Saving is blocked in this browser. Use Save backup so you keep your entries.' } }
 
         function on(date) {
             const [y, m, d] = date.split('-').map(Number), out = [];
             for (const e of data) {
                 if (e.deleted) continue;
                 if (e.date === date) out.push(e);
-                else if (e.rep && e.date < date) {const od = +e.date.slice(8); if (Math.min(od, dim(y, m - 1)) === d) out.push(e)}
+                else if (e.rep && e.date < date) { const od = +e.date.slice(8); if (Math.min(od, dim(y, m - 1)) === d) out.push(e) }
             }
             return out.sort((a, b) => a.type.localeCompare(b.type) || a.title.localeCompare(b.title));
         }
@@ -441,7 +446,7 @@
 
         function render() {
             const y = view.getFullYear(), m = view.getMonth();
-            $('title').textContent = view.toLocaleString(undefined, {month: 'long', year: 'numeric'});
+            $('title').textContent = view.toLocaleString(undefined, { month: 'long', year: 'numeric' });
             const first = new Date(y, m, 1).getDay(), g = $('grid'); g.innerHTML = '';
             const total = Math.ceil((first + dim(y, m)) / 7) * 7, tstr = todayStr();
             for (let i = 0; i < total; i++) {
@@ -450,8 +455,8 @@
                 b.className = 'day' + (dt.getMonth() !== m ? ' out' : '') + (s === tstr ? ' today' : '');
                 b.innerHTML = '<span class="n">' + dt.getDate() + '</span>';
                 const list = on(s);
-                list.slice(0, 3).forEach(e => {const c = document.createElement('span'); c.className = 'chip ' + e.type + (isDone(e, s) ? ' done' : ''); c.textContent = e.title; b.appendChild(c)});
-                if (list.length > 3) {const mo = document.createElement('span'); mo.className = 'more'; mo.textContent = '+' + (list.length - 3) + ' more'; b.appendChild(mo)}
+                list.slice(0, 3).forEach(e => { const c = document.createElement('span'); c.className = 'chip ' + e.type + (isDone(e, s) ? ' done' : ''); c.textContent = e.title; b.appendChild(c) });
+                if (list.length > 3) { const mo = document.createElement('span'); mo.className = 'more'; mo.textContent = '+' + (list.length - 3) + ' more'; b.appendChild(mo) }
                 b.onclick = () => openDay(s);
                 g.appendChild(b);
             }
@@ -462,7 +467,7 @@
             const y = view.getFullYear(), m = view.getMonth(); let all = 0, left = 0, nb = 0, nd = 0;
             for (let d = 1; d <= dim(y, m); d++) {
                 const s = ds(y, m, d); on(s).forEach(e => {
-                    if (e.type === 'bill') {nb++; const a = +e.amt || 0; all += a; if (!isDone(e, s)) left += a}
+                    if (e.type === 'bill') { nb++; const a = +e.amt || 0; all += a; if (!isDone(e, s)) left += a }
                     else if (e.type === 'deadline' && !isDone(e, s)) nd++;
                 })
             }
@@ -479,10 +484,10 @@
                 on(s).forEach(e => {
                     if (e.type === 'note' || isDone(e, s)) return; n++;
                     const li = document.createElement('li'); if (i < 0) li.className = 'late';
-                    const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : i < 0 ? Math.abs(i) + 'd late' : dt.toLocaleDateString(undefined, {month: 'short', day: 'numeric'});
+                    const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : i < 0 ? Math.abs(i) + 'd late' : dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                     li.innerHTML = '<span class="d">' + label + '</span><span></span><span class="a">' + (e.amt ? fmt(e.amt) : '') + '</span>';
                     li.children[1].textContent = e.title;
-                    li.onclick = () => {view = new Date(dt.getFullYear(), dt.getMonth(), 1); render(); openDay(s)};
+                    li.onclick = () => { view = new Date(dt.getFullYear(), dt.getMonth(), 1); render(); openDay(s) };
                     ul.appendChild(li);
                 });
             }
@@ -492,51 +497,51 @@
         function openDay(s) {
             selected = s; editing = null; resetForm();
             const [y, m, d] = s.split('-').map(Number);
-            $('dtitle').textContent = new Date(y, m - 1, d).toLocaleDateString(undefined, {weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'});
+            $('dtitle').textContent = new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
             list(); if (!$('dlg').open) $('dlg').showModal();
         }
         function list() {
             const ul = $('items'); ul.innerHTML = ''; const items = on(selected);
-            if (!items.length) {ul.innerHTML = '<li class="empty">No entries on this day.</li>'; return }
+            if (!items.length) { ul.innerHTML = '<li class="empty">No entries on this day.</li>'; return }
             items.forEach(e => {
                 const li = document.createElement('li'); if (isDone(e, selected)) li.className = 'done';
                 const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = isDone(e, selected);
                 cb.title = e.type === 'bill' ? 'Mark as paid' : 'Mark as done'; cb.hidden = e.type === 'note';
-                cb.onchange = () => {e.done = e.done || {}; if (cb.checked) e.done[selected] = 1; else delete e.done[selected]; put(e); list(); render()};
+                cb.onchange = () => { e.done = e.done || {}; if (cb.checked) e.done[selected] = 1; else delete e.done[selected]; put(e); list(); render() };
                 const t = document.createElement('div'); t.className = 't';
                 const st = document.createElement('strong'); st.textContent = e.title; t.appendChild(st);
                 const meta = [e.type === 'bill' ? 'Bill' : e.type === 'deadline' ? 'Deadline' : 'Note'];
                 if (e.amt) meta.push(fmt(e.amt)); if (e.rep) meta.push('monthly');
                 const sm = document.createElement('small'); sm.textContent = meta.join(', '); t.appendChild(sm);
-                if (e.note) {const n = document.createElement('small'); n.textContent = e.note; t.appendChild(n)}
+                if (e.note) { const n = document.createElement('small'); n.textContent = e.note; t.appendChild(n) }
                 const ed = document.createElement('button'); ed.className = 'ic'; ed.textContent = 'Edit'; ed.onclick = () => startEdit(e);
                 const del = document.createElement('button'); del.className = 'ic'; del.textContent = 'Delete';
-                del.onclick = () => {const msg = e.rep ? 'Delete "' + e.title + '" and all its monthly repeats?' : 'Delete "' + e.title + '"?'; if (confirm(msg)) {e.deleted = true; put(e); list(); render()} };
+                del.onclick = () => { const msg = e.rep ? 'Delete "' + e.title + '" and all its monthly repeats?' : 'Delete "' + e.title + '"?'; if (confirm(msg)) { e.deleted = true; put(e); list(); render() } };
                 li.append(cb, t, ed, del); ul.appendChild(li);
             });
         }
-        function resetForm() {$('f').reset(); $('save').textContent = 'Add to this day'; $('cancel').hidden = true; editing = null}
+        function resetForm() { $('f').reset(); $('save').textContent = 'Add to this day'; $('cancel').hidden = true; editing = null }
         function startEdit(e) {
             editing = e; $('ftitle').value = e.title; $('ftype').value = e.type; $('famt').value = e.amt || ''; $('fnote').value = e.note || ''; $('frep').checked = !!e.rep;
             $('save').textContent = 'Save changes'; $('cancel').hidden = false; $('ftitle').focus();
         }
         $('f').addEventListener('submit', ev => {
             ev.preventDefault();
-            const v = {title: $('ftitle').value.trim(), type: $('ftype').value, amt: $('famt').value, note: $('fnote').value.trim(), rep: $('frep').checked};
+            const v = { title: $('ftitle').value.trim(), type: $('ftype').value, amt: $('famt').value, note: $('fnote').value.trim(), rep: $('frep').checked };
             if (!v.title) return;
-            if (editing) {Object.assign(editing, v); put(editing)}
-            else {const n = {id: newId(), date: selected, done: {}, ...v}; data.push(n); put(n)}
+            if (editing) { Object.assign(editing, v); put(editing) }
+            else { const n = { id: newId(), date: selected, done: {}, ...v }; data.push(n); put(n) }
             resetForm(); list(); render();
         });
         $('cancel').onclick = resetForm;
         $('close').onclick = () => $('dlg').close();
-        $('prev').onclick = () => {view = new Date(view.getFullYear(), view.getMonth() - 1, 1); render()};
-        $('next').onclick = () => {view = new Date(view.getFullYear(), view.getMonth() + 1, 1); render()};
-        $('today').onclick = () => {view = new Date(); render()};
+        $('prev').onclick = () => { view = new Date(view.getFullYear(), view.getMonth() - 1, 1); render() };
+        $('next').onclick = () => { view = new Date(view.getFullYear(), view.getMonth() + 1, 1); render() };
+        $('today').onclick = () => { view = new Date(); render() };
 
         $('exp').onclick = () => {
             const a = document.createElement('a');
-            a.href = URL.createObjectURL(new Blob([JSON.stringify(data.filter(e => !e.deleted), null, 2)], {type: 'application/json'}));
+            a.href = URL.createObjectURL(new Blob([JSON.stringify(data.filter(e => !e.deleted), null, 2)], { type: 'application/json' }));
             a.download = 'bills-backup-' + todayStr() + '.json'; a.click(); URL.revokeObjectURL(a.href);
         };
         $('imp').onclick = () => $('file').click();
@@ -545,47 +550,52 @@
             r.onload = () => {
                 try {
                     const j = JSON.parse(r.result); if (!Array.isArray(j)) throw 0;
-                    if (confirm('Add ' + j.length + ' entries from this backup? Your current entries are kept.')) {importList(j); render()}
-                } catch (e) {alert('That file is not a valid backup.')}
+                    if (confirm('Add ' + j.length + ' entries from this backup? Your current entries are kept.')) { importList(j); render() }
+                } catch (e) { alert('That file is not a valid backup.') }
             };
             r.readAsText(f); ev.target.value = '';
         };
 
-        function newId() {return Date.now().toString(36) + Math.random().toString(36).slice(2, 6)}
-        const cloud = {ready: false, pending: false, failed: false};
-        function put(e) {e.updatedAt = Date.now(); persist(); if (window.cloudPush) window.cloudPush(e)}
+        function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }
+        const cloud = { ready: false, pending: false, failed: false };
+        function put(e) { e.updatedAt = Date.now(); persist(); if (window.cloudPush) window.cloudPush(e) }
         function importList(j) {
             j.forEach(x => {
                 if (!x || !x.title || !x.date) return;
                 const ex = x.id && data.find(d => d.id === x.id);
-                if (ex) {Object.assign(ex, x, {deleted: false}); put(ex)}
-                else {const n = {done: {}, ...x, id: x.id || newId(), deleted: false}; data.push(n); put(n)}
+                if (ex) { Object.assign(ex, x, { deleted: false }); put(ex) }
+                else { const n = { done: {}, ...x, id: x.id || newId(), deleted: false }; data.push(n); put(n) }
             })
         }
         function status() {
             const s = $('sync');
             if (!navigator.onLine) s.textContent = 'Offline. Changes are saved on this device and will sync when you reconnect.';
-            else if (cloud.failed) s.textContent = 'Cloud sync is unavailable. Working from this device only.';
+            else if (cloud.failed) s.textContent = 'Cloud sync is unavailable' + (cloud.err ? ' (' + cloud.err + ')' : '') + '. Working from this device only.';
             else if (!cloud.ready) s.textContent = 'Connecting to cloud sync...';
             else s.textContent = cloud.pending ? 'Syncing...' : 'Synced across your devices.';
         }
-        window.cloudFail = () => {cloud.failed = true; status()};
+        window.cloudFail = err => { cloud.failed = true; cloud.err = err ? (err.code || err.message || String(err)) : ''; status() };
         window.cloudMerge = function (remote, pending) {
             cloud.ready = true; cloud.failed = false; cloud.pending = pending; let changed = false;
             const rm = new Map(remote.map(r => [r.id, r]));
             remote.forEach(r => {
                 const l = data.find(d => d.id === r.id);
-                if (!l) {data.push(r); changed = true}
-                else if ((r.updatedAt || 0) > (l.updatedAt || 0)) {Object.assign(l, r); changed = true}
+                if (!l) { data.push(r); changed = true }
+                else if ((r.updatedAt || 0) > (l.updatedAt || 0)) { Object.assign(l, r); changed = true }
             });
-            data.forEach(l => {const r = rm.get(l.id); if (!r || (l.updatedAt || 0) > (r.updatedAt || 0)) window.cloudPush(l)});
-            if (changed) {persist(); render(); if ($('dlg').open && selected) list()}
+            data.forEach(l => { const r = rm.get(l.id); if (!r || (l.updatedAt || 0) > (r.updatedAt || 0)) window.cloudPush(l) });
+            if (changed) { persist(); render(); if ($('dlg').open && selected) list() }
             status();
         };
-        ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(d => {const x = document.createElement('div'); x.textContent = d; $('dow').appendChild(x)});
+        ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(d => { const x = document.createElement('div'); x.textContent = d; $('dow').appendChild(x) });
         load(); render(); status();
         window.addEventListener('offline', status);
-        window.addEventListener('online', () => {status(); if (cloud.failed && !$('dlg').open) location.reload()});
+        window.addEventListener('online', () => { status(); if (cloud.failed && !$('dlg').open) location.reload() });
+    </script>
+    <script>
+        if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+            window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js').catch(() => { }));
+        }
     </script>
     <script type="module">
         const firebaseConfig = {
@@ -601,14 +611,14 @@
         const COLLECTION = 'billcal_entries';
         const B = 'https://www.gstatic.com/firebasejs/12.15.0/';
         try {
-            const {initializeApp} = await import(B + 'firebase-app.js');
+            const { initializeApp } = await import(B + 'firebase-app.js');
             const fs = await import(B + 'firebase-firestore.js');
             const app = initializeApp(firebaseConfig);
-            const db = fs.initializeFirestore(app, {localCache: fs.persistentLocalCache({tabManager: fs.persistentMultipleTabManager()})});
+            const db = fs.initializeFirestore(app, { localCache: fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager() }) });
             const col = fs.collection(db, COLLECTION);
-            window.cloudPush = e => {fs.setDoc(fs.doc(col, e.id), JSON.parse(JSON.stringify(e))).catch(() => { })};
-            fs.onSnapshot(col, snap => window.cloudMerge(snap.docs.map(d => d.data()), snap.metadata.hasPendingWrites), () => window.cloudFail());
-        } catch (e) {window.cloudFail()}
+            window.cloudPush = e => { fs.setDoc(fs.doc(col, e.id), JSON.parse(JSON.stringify(e))).catch(err => window.cloudFail(err)) };
+            fs.onSnapshot(col, snap => window.cloudMerge(snap.docs.map(d => d.data()), snap.metadata.hasPendingWrites), err => window.cloudFail(err));
+        } catch (e) { window.cloudFail(e) }
     </script>
 </body>
 

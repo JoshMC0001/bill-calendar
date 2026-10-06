@@ -480,6 +480,112 @@
             border-radius: 8px;
             background: var(--bg)
         }
+
+        .sav {
+            margin-bottom: 14px
+        }
+
+        .sav .big {
+            font-size: 26px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums
+        }
+
+        .sav .big.neg,
+        .sav .after.neg {
+            color: var(--bad)
+        }
+
+        .sav .after {
+            font-size: 13px;
+            color: var(--mute);
+            margin: 2px 0 8px
+        }
+
+        .sav .sr {
+            display: flex;
+            gap: 6px
+        }
+
+        .sav .sr input {
+            flex: 1;
+            min-width: 0;
+            padding: 6px 8px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--bg)
+        }
+
+        .up .paidli .d {
+            color: var(--ok)
+        }
+
+        .up .paidli .a {
+            color: var(--mute)
+        }
+
+        .accs {
+            list-style: none;
+            margin: 0 0 8px;
+            padding: 0
+        }
+
+        .accrow {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            width: 100%;
+            border: 0;
+            border-bottom: 1px solid var(--line);
+            border-radius: 0;
+            background: transparent;
+            padding: 6px 2px;
+            text-align: left
+        }
+
+        .accrow b {
+            font-variant-numeric: tabular-nums
+        }
+
+        .acced {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            padding: 6px 0
+        }
+
+        .acced input {
+            flex: 1 1 80px;
+            min-width: 0;
+            padding: 5px 8px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--bg)
+        }
+
+        .acced button {
+            padding: 4px 8px;
+            font-size: 13px
+        }
+
+        .paysel {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            font-size: 13px;
+            color: var(--mute);
+            margin: 8px 0 0
+        }
+
+        .paysel select {
+            flex: 1;
+            min-width: 0;
+            padding: 5px 8px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--bg);
+            color: var(--ink)
+        }
     </style>
 </head>
 
@@ -496,10 +602,23 @@
             <div class="grid" id="grid"></div>
         </main>
         <aside class="panel side">
+            <h2>Savings</h2>
+            <div class="sav">
+                <div class="after" style="margin:0">Total savings</div>
+                <div class="big" id="savBig">Not set</div>
+                <div class="after" id="savNote"></div>
+                <ul class="accs" id="accs"></ul>
+                <div class="sr"><input id="accName" maxlength="30" placeholder="Savings app (GCash, bank...)"
+                        aria-label="Savings app name"><input id="accAmt" type="number" step="0.01" placeholder="Balance"
+                        aria-label="Balance" style="max-width:88px"><button id="accAdd">Add</button></div>
+                <label class="paysel" id="payFromRowS" hidden>Pay bills from <select id="payFromS"></select></label>
+            </div>
             <h2>This month</h2>
             <div id="stats" style="margin-bottom:14px"></div>
             <h2>Overdue and coming up</h2>
             <ul class="up" id="up"></ul>
+            <h2 id="paidH">Paid</h2>
+            <ul class="up" id="paid"></ul>
             <div class="calc" id="calcBox" hidden></div>
             <div class="foot">
                 <button id="calcBtn" aria-expanded="false">Calculator</button>
@@ -516,6 +635,7 @@
         <div class="head">
             <h1 id="dtitle" style="font-size:17px"></h1><button id="close">Close</button>
         </div>
+        <label class="paysel" id="payFromRowD" hidden>Pay from <select id="payFromD"></select></label>
         <ul class="items" id="items"></ul>
         <form id="f">
             <label>Title<input id="ftitle" required maxlength="80" placeholder="Electric bill"></label>
@@ -582,7 +702,7 @@
                 b.onclick = () => openDay(s);
                 g.appendChild(b);
             }
-            stats(); upcoming();
+            stats(); upcoming(); paidList();
         }
 
         function stats() {
@@ -597,7 +717,7 @@
                 + '<div class="stat"><span>Total</span><b>' + fmt(all) + '</b></div>'
                 + '<div class="stat"><span>Paid so far</span><b>' + fmt(paid) + '</b></div>'
                 + '<div class="stat"><span>Still to pay</span><b>' + fmt(left) + '</b></div>'
-                + '<div class="stat"><span>Open deadlines</span><b>' + nd + '</b></div>';
+                + '<div class="stat"><span>Open deadlines</span><b>' + nd + '</b></div>'; lastLeft = left; savingsUI();
         }
 
         function upcoming() {
@@ -650,7 +770,7 @@
                 if (e.note) { const n = document.createElement('small'); n.textContent = e.note; t.appendChild(n) }
                 ((e.pays && e.pays[selected]) || []).forEach((p, i) => {
                     const h = document.createElement('div'); h.className = 'ph';
-                    h.append(document.createTextNode('Paid ' + fmt(p.a) + ' on ' + new Date(p.t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })));
+                    h.append(document.createTextNode('Paid ' + fmt(p.a) + ' on ' + new Date(p.t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + (accName(p.acc) ? ' from ' + accName(p.acc) : '')));
                     const rb = document.createElement('button'); rb.className = 'ic'; rb.textContent = 'Remove';
                     rb.onclick = () => { removePay(e, selected, i); list(); render() };
                     h.appendChild(rb); t.appendChild(h);
@@ -753,6 +873,8 @@
             if (on && focus) box.focus();
         }
         function initCalc() {
+            $('accAdd').onclick = addAcc;
+            ['payFromS', 'payFromD'].forEach(id => { $(id).onchange = ev => { payFromPref = ev.target.value; try { localStorage.setItem('billCalendar.payFrom', payFromPref) } catch (e) { } fillPaySel() } });
             makeCalc($('calcBox'));
             makeCalc($('dcalcBox'), n => { const f = $('famt'); f.value = Math.round(Math.abs(n) * 100) / 100; f.focus() });
             $('calcBtn').onclick = () => {
@@ -762,7 +884,91 @@
             $('dcalcBtn').onclick = () => toggleBox($('dcalcBtn'), $('dcalcBox'), $('dcalcBox').hidden, true);
             try { if (localStorage.getItem('billCalendar.calc') === '1') toggleBox($('calcBtn'), $('calcBox'), true, false) } catch (e) { }
         }
-        function addPay(e, d, a) { e.pays = e.pays || {}; (e.pays[d] = e.pays[d] || []).push({ a: Math.round(a * 100) / 100, t: Date.now() }); put(e) }
+        let lastLeft = 0, openAcc = null, payFromPref = '';
+        try { payFromPref = localStorage.getItem('billCalendar.payFrom') || '' } catch (e) { }
+        const accs = () => data.filter(e => e.type === 'savings' && !e.deleted).sort((a, b) => (a.created || 0) - (b.created || 0) || (a.name || '').localeCompare(b.name || ''));
+        const accName = id => { const a = accs().find(x => x.id === id); return a ? (a.name || 'Savings') : '' };
+        function payFromId() { const l = accs(); if (!l.length) return undefined; return l.some(a => a.id === payFromPref) ? payFromPref : l[0].id }
+        function savTotals() {
+            const list = accs(), m = {}, by = {}; list.forEach(a => { m[a.id] = +a.bal || 0; by[a.id] = a });
+            if (list.length) data.forEach(e => {
+                if (e.deleted || e.type === 'savings' || !e.pays) return;
+                Object.values(e.pays).forEach(arr => arr.forEach(p => {
+                    const id = by[p.acc] ? p.acc : list[0].id;
+                    if (p.t >= by[id].since) m[id] -= +p.a || 0;
+                }));
+            });
+            return { list, m };
+        }
+        function fillPaySel() {
+            const l = accs(), cur = payFromId();
+            [['payFromS', 'payFromRowS'], ['payFromD', 'payFromRowD']].forEach(([s, r]) => {
+                const sel = $(s); sel.innerHTML = '';
+                l.forEach(a => { const o = document.createElement('option'); o.value = a.id; o.textContent = a.name || 'Savings'; sel.appendChild(o) });
+                sel.value = cur || ''; $(r).hidden = !l.length;
+            });
+        }
+        function savingsUI() {
+            const { list, m } = savTotals(), big = $('savBig'), note = $('savNote'), ul = $('accs'); ul.innerHTML = '';
+            if (!list.length) { big.textContent = 'Not set'; big.className = 'big'; note.textContent = 'Add each savings app and its balance below.'; note.className = 'after'; fillPaySel(); return }
+            let total = 0; list.forEach(a => total += m[a.id]);
+            const after = total - lastLeft;
+            big.textContent = fmt(total); big.className = 'big' + (total < 0 ? ' neg' : '');
+            note.textContent = lastLeft > 0 ? 'After ' + fmt(lastLeft) + ' still to pay this month: ' + fmt(after) : 'No unpaid bills left this month.';
+            note.className = 'after' + (lastLeft > 0 && after < 0 ? ' neg' : '');
+            list.forEach(a => {
+                const li = document.createElement('li'), row = document.createElement('button');
+                row.type = 'button'; row.className = 'accrow'; row.innerHTML = '<span></span><b></b>';
+                row.children[0].textContent = a.name || 'Savings'; row.children[1].textContent = fmt(m[a.id]);
+                row.title = 'Tap to edit'; row.onclick = () => { openAcc = openAcc === a.id ? null : a.id; savingsUI() };
+                li.appendChild(row);
+                if (openAcc === a.id) {
+                    const ed = document.createElement('div'); ed.className = 'acced';
+                    const inp = document.createElement('input'); inp.type = 'number'; inp.step = '0.01'; inp.placeholder = 'Amount';
+                    const mk = (t, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.onclick = fn; return b };
+                    ed.append(inp,
+                        mk('Set', () => editAcc(a, 'set', inp)),
+                        mk('+ Add', () => editAcc(a, 'add', inp)),
+                        mk('Rename', () => { const n = prompt('Name for this savings app', a.name || 'Savings'); if (n && n.trim()) { a.name = n.trim().slice(0, 30); put(a); savingsUI(); render() } }),
+                        mk('Delete', () => { if (confirm('Remove "' + (a.name || 'Savings') + '"? Payments made from it will count against your first savings app instead.')) { a.deleted = true; put(a); openAcc = null; savingsUI() } }));
+                    li.appendChild(ed);
+                }
+                ul.appendChild(li);
+            });
+            fillPaySel();
+        }
+        function editAcc(a, mode, inp) {
+            const v = parseFloat(inp.value); if (isNaN(v)) { inp.focus(); return }
+            const { m } = savTotals();
+            a.bal = mode === 'set' ? v : (m[a.id] + v); a.since = Date.now(); put(a); savingsUI();
+        }
+        function addAcc() {
+            const n = $('accName').value.trim(), v = parseFloat($('accAmt').value);
+            if (!n) { $('accName').focus(); return }
+            const a = { id: 'sav_' + newId(), type: 'savings', name: n.slice(0, 30), bal: isNaN(v) ? 0 : v, since: Date.now(), created: Date.now() };
+            data.push(a); put(a); $('accName').value = ''; $('accAmt').value = ''; savingsUI();
+        }
+        function paidList() {
+            const ul = $('paid'), y = view.getFullYear(), m = view.getMonth(); let n = 0; ul.innerHTML = '';
+            $('paidH').textContent = 'Paid in ' + view.toLocaleString(undefined, { month: 'long' });
+            for (let d = 1; d <= dim(y, m); d++) {
+                const s = ds(y, m, d);
+                on(s).forEach(e => {
+                    if (e.type === 'note' || !isDone(e, s)) return; n++;
+                    const li = document.createElement('li'); li.className = 'paidli';
+                    li.innerHTML = '<span class="d"></span><span></span><span class="a"></span>';
+                    li.children[0].textContent = new Date(y, m, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                    li.children[1].textContent = '\u2713 ' + e.title;
+                    li.children[2].textContent = e.type === 'bill' && e.amt ? fmt(paidOf(e, s)) : '';
+                    const ub = document.createElement('button'); ub.className = 'pay undo'; ub.textContent = 'Undo';
+                    ub.title = e.type === 'bill' ? 'Undo payment' : 'Undo';
+                    ub.onclick = ev => { ev.stopPropagation(); toggleDone(e, s); render(); if ($('dlg').open && selected) list() };
+                    li.appendChild(ub); li.onclick = () => openDay(s); ul.appendChild(li);
+                });
+            }
+            if (!n) ul.innerHTML = '<li class="empty" style="cursor:default">Nothing paid yet this month.</li>';
+        }
+        function addPay(e, d, a) { e.pays = e.pays || {}; const p = { a: Math.round(a * 100) / 100, t: Date.now() }, acc = payFromId(); if (acc) p.acc = acc; (e.pays[d] = e.pays[d] || []).push(p); put(e) }
         function removePay(e, d, i) { if (e.pays && e.pays[d]) { e.pays[d].splice(i, 1); if (!e.pays[d].length) delete e.pays[d]; put(e) } }
         function toggleDone(e, d) {
             if (isDone(e, d)) { if (e.done) delete e.done[d]; if (e.pays) delete e.pays[d]; put(e) }
@@ -774,6 +980,7 @@
         function put(e) { e.updatedAt = Date.now(); persist(); if (window.cloudPush) window.cloudPush(e) }
         function importList(j) {
             j.forEach(x => {
+                if (x && x.type === 'savings' && x.id) { let ex = data.find(d => d.id === x.id); if (ex) Object.assign(ex, x); else { ex = { ...x }; data.push(ex) } put(ex); return }
                 if (!x || !x.title || !x.date) return;
                 const ex = x.id && data.find(d => d.id === x.id);
                 if (ex) { Object.assign(ex, x, { deleted: false }); put(ex) }
